@@ -1,7 +1,7 @@
 """子图反思节点 - 判断信息是否充足"""
 
 
-def reflect_node(state, llm) -> dict:
+def sub_reflector(state, llm) -> dict:
     """反思：评估当前回答质量，决定是否需要补充检索"""
     answer = state.get("final_answer", "")
 

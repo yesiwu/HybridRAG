@@ -7,6 +7,7 @@ load_dotenv()
 # 初始化 Tavily 客户端
 tavily = TavilyClient(api_key=os.getenv("SEARCH_API_KEY"))
 
+@tool(description="使用 Tavily 搜索网络，获取最新信息。输入是一个查询字符串，输出是最相关的 5 条内容的文本。")
 def search_tavily(query: str):
     """
     使用 Tavily 搜索网络。

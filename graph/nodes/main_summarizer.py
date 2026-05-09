@@ -1,7 +1,7 @@
 """汇总验证节点 - 聚合 + 双重验证 + 冲突消解"""
 
 
-def collect_and_verify_answer(state, llm) -> dict:
+def main_summarizer(state, llm) -> dict:
     """汇总验证：合并所有子图结果，生成最终回答"""
     answers = state.get("agent_answers", [])
     query = state.get("originalQuery", "")

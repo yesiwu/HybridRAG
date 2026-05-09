@@ -2,29 +2,20 @@ from langgraph.graph import START, END, StateGraph
 from functools import partial
 
 # 导入状态定义
-from state.graph_state import State, AgentState
+from graph.graph_state import State, AgentState
 # 导入节点函数
-from graph.nodes import (
-    main_task_planner,
-    subgraph_plan_node,
-    reflect_node,
-    rewrite_query_node,
-    compress_context_node,
-    collect_and_verify_answer,
-)
+from graph.nodes.main_planner import main_planner as main_task_planner
+from graph.nodes.main_summarizer import main_summarizer
+from graph.nodes.sub_planner import sub_planner
+from graph.nodes.sub_reflector import sub_reflector
+from graph.nodes.sub_rewrite import sub_rewrite
+from graph.nodes.sub_compressor import compress_context_node as sub_compressor
+from graph.nodes.subgraph_result_sync import subgraph_result_sync
 # 导入路由函数
 from graph.nodes.edges import (
     route_after_reflect,
-    subgraph_final_router,
     main_router,
 )
-
-
-def _dummy_tool_node(state):
-    """伪代码工具节点：模拟工具调用结果，后续替换为真实 ToolNode"""
-    return {
-        "tool_call_count": 1,
-    }
 
 
 def create_agent_graph(llm, tools_list):
@@ -38,37 +29,28 @@ def create_agent_graph(llm, tools_list):
     # ==========================
     agent_subgraph_builder = StateGraph(AgentState)
 
-    # 子图节点
-    agent_subgraph_builder.add_node("subgraph_planner", partial(subgraph_plan_node, llm=llm))
-    agent_subgraph_builder.add_node("tools", _dummy_tool_node)
-    agent_subgraph_builder.add_node("reflect_node", partial(reflect_node, llm=llm))
-    agent_subgraph_builder.add_node("rewrite_query_node", partial(rewrite_query_node, llm=llm))
-    agent_subgraph_builder.add_node("compress_context_node", partial(compress_context_node, llm=llm))
-    agent_subgraph_builder.add_node("subgraph_final_router", subgraph_final_router)
+    # 子图节点  partial = 给函数 “预先绑定” 参数，生成一个新函数
+    agent_subgraph_builder.add_node("sub_planner", partial(sub_planner, llm=llm))
+    agent_subgraph_builder.add_node("sub_reflector", partial(sub_reflector, llm=llm))
+    agent_subgraph_builder.add_node("sub_rewrite", partial(sub_rewrite, llm=llm))
+    agent_subgraph_builder.add_node("sub_compressor", partial(sub_compressor, llm=llm))
+    agent_subgraph_builder.add_node("subgraph_result_sync", subgraph_result_sync)
 
     # 子图连线
-    agent_subgraph_builder.add_edge(START, "subgraph_planner")
-
+    agent_subgraph_builder.add_edge(START, "sub_planner")
+    agent_subgraph_builder.add_edge("sub_planner", "sub_reflector")
+    #我回答之后，还没有把结果写入主agent state，这时候应该更新了子agent state，进入反思节点，判断是否需要重写查询，如果需要就进入重写节点，否则直接进入最终路由
     agent_subgraph_builder.add_conditional_edges(
-        "subgraph_planner",
-        lambda state: "tools" if state.get("need_tool_call", False) else "reflect_node",
-        {"tools": "tools", "reflect_node": "reflect_node"},
+        "sub_reflector",
+        route_after_reflect
     )
 
-    agent_subgraph_builder.add_edge("tools", "subgraph_planner")
-
-    agent_subgraph_builder.add_conditional_edges(
-        "reflect_node",
-        route_after_reflect,
-        {
-            "compress_context_node": "compress_context_node",
-            "subgraph_final_router": "subgraph_final_router",
-        },
-    )
-
-    agent_subgraph_builder.add_edge("compress_context_node", "rewrite_query_node")
-    agent_subgraph_builder.add_edge("rewrite_query_node", "subgraph_planner")
-    agent_subgraph_builder.add_edge("subgraph_final_router", END)
+    #压缩是为了防止上下文过长，除去原来的冗余信息，保留原来关键信息， 同时给新的查询腾出空间。
+    agent_subgraph_builder.add_edge("sub_rewrite", "sub_compressor")
+    #重写之后直接进入压缩节点，压缩节点完成后直接进入规划节点，进行下一轮迭代
+    agent_subgraph_builder.add_edge("sub_compressor", "sub_planner")
+    
+    agent_subgraph_builder.add_edge("subgraph_result_sync", END)
 
     atomic_agent_subgraph = agent_subgraph_builder.compile()
 
@@ -79,8 +61,8 @@ def create_agent_graph(llm, tools_list):
 
     # 主图节点
     main_graph_builder.add_node("main_task_planner", partial(main_task_planner, llm=llm))
-    main_graph_builder.add_node("atomic_agent", atomic_agent_subgraph)
-    main_graph_builder.add_node("collect_verify", partial(collect_and_verify_answer, llm=llm))
+    main_graph_builder.add_node("atomic_agent_subgraph", atomic_agent_subgraph)
+    main_graph_builder.add_node("main_summarizer", partial(main_summarizer, llm=llm))
 
     # 主图连线
     main_graph_builder.add_edge(START, "main_task_planner")
@@ -88,14 +70,10 @@ def create_agent_graph(llm, tools_list):
     main_graph_builder.add_conditional_edges(
         "main_task_planner",
         main_router,
-        {
-            "atomic_agent": "atomic_agent",
-            "collect_verify": "collect_verify",
-        },
     )
 
-    main_graph_builder.add_edge("atomic_agent", "main_task_planner")
-    main_graph_builder.add_edge("collect_verify", END)
+    main_graph_builder.add_edge("atomic_agent_subgraph", "main_task_planner")
+    main_graph_builder.add_edge("main_summarizer", END)
 
     agent_graph = main_graph_builder.compile()
 

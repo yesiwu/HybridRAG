@@ -1,4 +1,6 @@
-"""子图规划节点 - LLM React 检索执行（适配整合版 rag_search）"""
+"""子图规划节点 
+你需要完成接收主agent发送过来的任务query还有子图查询重写，压缩后的新任务query，请设计好这样的逻辑
+"""
 import json
 import asyncio
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
@@ -54,7 +56,7 @@ def _execute_tool_call(tool_call: dict) -> str:
     except Exception as e:
         return json.dumps({"error": str(e)}, ensure_ascii=False)
 
-def subgraph_plan_node(state, llm) -> dict:
+def sub_planner(state, llm) -> dict:
     question = state.get("question", "")
     question_index = state.get("question_index", "default_task")
     messages = list(state.get("messages", []))

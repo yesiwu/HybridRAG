@@ -1,7 +1,7 @@
 """子图查询重写节点 - 优化检索策略"""
 
 
-def rewrite_query_node(state, llm) -> dict:
+def sub_rewrite(state, llm) -> dict:
     """查询重写：基于反思结果优化搜索词"""
     question = state.get("question", "")
     reflection = state.get("reflection", "")

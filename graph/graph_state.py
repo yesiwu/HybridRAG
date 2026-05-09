@@ -1,4 +1,5 @@
 from typing import List, Annotated, Set, Any
+from enum import Enum
 from langgraph.graph import MessagesState
 import operator
 
@@ -25,13 +26,13 @@ class State(MessagesState):
     # --- DAG 任务编排核心字段 ---
     # 结构示例:
     # {
-    #     "id": 1,
+    #     "task_id": 1,
     #     "query": "2024年全球半导体行业营收数据",
     #     "depends_on": [],
-    #     "status": "pending"  # pending, running, completed
+    #     "status": "pending"  # pending, running, completed, failed
     # },
     # {
-    #     "id": 2,
+    #     "task_id": 2,
     #     "query": "基于任务1的营收数据，分析英伟达的市场份额",
     #     "depends_on": [1],
     #     "status": "pending"
@@ -41,45 +42,65 @@ class State(MessagesState):
     # 已完成任务的 ID 集合，使用 set_union 确保并行子图返回时 ID 正常合并
     completed_task_ids: Annotated[Set[int], set_union] = set()
 
-    # 图短期记忆：planner 的推理过程、查询改写、关键词等（供后续节点参考）
-    plan_memory: List[dict] = []
-
     # 最终输出
     final_answer: str = ""
 
 class AgentState(MessagesState):
     """单个子任务执行图（子图）的状态定义"""
     # 基础任务信息
-    question: str = ""                                # 当前子智能体负责处理的特定查询
-    question_index: int = 0                           # 该任务在整个任务序列中的 ID 或索引
+    task_query: str = ""                                # 当前子智能体负责处理的特定查询
+    task_id: int = 0                           # 该任务在整个任务序列中的 ID 或索引
 
     # 上层依赖
     dependency_context: List[dict] = []                # 接收来自上层依赖的任务结果
+    """
+    {
+  "query": "2025年发展最快的几家ai公司",
+  "results": [
+    {
+      "title": "2025年度AI创业公司TOP50",
+      "url": "http://enet16.com/article/2026/0202/A202602022603.html",
+      "content": "DBC德本咨询发布的《2025年度AI创业公司TOP50》榜单显示，2025年中国AI创业公司发展迅猛，涵盖AI大模型、具身智能、AIGC、自动驾驶、AI芯片等多个领域。榜单前十名包括：DeepSeek（AI大模型，2023年成立）、Minimax稀宇科技（AIGC，2021年成立）、月之暗面Kimi（AI大模型，2023年成立）、银河通用机器人（具身智能，2023年成立）、智元机器人（具身智能，2023年成立）、阶跃星辰（通用大模型，2023年成立）、百川智能（AIGC，2023年成立）、九识智能（自动驾驶，2021年成立）、零一万物（AIGC，2023年成立）、众擎机器人（具身智能，2023年成立）。报告指出，2025年头部AI公司融资额达数亿甚至超十亿元，AI应用落地已从概念验证进入商业快速变现期，创业公司从诞生到规模化盈利的周期被极度压缩。"
+    },
+    {
+      "title": "2025年美国获得亿元级融资的55家AI初创公司盘点",
+      "url": "https://m.zhiding.cn/article/3177273.htm",
+      "content": "至顶网盘点显示，2025年美国AI初创公司融资热潮持续，共有55家公司获得1亿美元以上融资。其中，超过10亿美元的融资轮次有8起，较2024年的3起大幅增加。主要融资事件包括：Anthropic完成130亿美元F轮融资（估值1830亿美元）、OpenAI完成400亿美元融资（估值3000亿美元）、xAI完成200亿美元E轮融资、Reflection AI完成20亿美元B轮融资（估值80亿美元）、Cursor（Anysphere）完成23亿美元融资（估值293亿美元）、Luma AI完成9亿美元C轮融资（估值40亿美元）等。报告指出，AI行业在2025年保持强劲发展势头，融资规模不断扩大，涵盖AI基础设施、编程工具、医疗、法律等多个垂直领域。"
+    }
+  ]
+}
+    """
+    search_results: List[dict] = [] # 搜索到的具体内容（如文本块、URL等），供搜索工具调用后存储，供后续工具调用和回答生成使用
     
-    search_results: List[str] = [] # 搜索到的具体内容（如文本块、URL等），供搜索工具调用后存储，供后续工具调用和回答生成使用
-    
-    # 检索与工具相关
-    retrieval_keys: Annotated[Set[str], set_union] = set()  # 已检索标识集合（去重）
-    searched_keywords: Annotated[Set[str], set_union] = set()  # 已搜索关键词（防重复搜索）
-    crawled_urls: Annotated[Set[str], set_union] = set()      # 已爬取URL（防重复爬取）
-    retrieval_chunks: List[dict] = []                 # 原始召回的文本块
-    filtered_high_quality_chunks: List[dict] = []      # 过滤后的高质量块
+    # # 检索与工具相关
+    # retrieval_keys: Annotated[Set[str], set_union] = set()  # 已检索标识集合（去重）
+    # searched_keywords: Annotated[Set[str], set_union] = set()  # 已搜索关键词（防重复搜索）
+    # crawled_urls: Annotated[Set[str], set_union] = set()      # 已爬取URL（防重复爬取）
+    # retrieval_chunks: List[dict] = []                 # 原始召回的文本块
+    # filtered_high_quality_chunks: List[dict] = []      # 过滤后的高质量块
 
-    # 动态上下文压缩（你的核心安全阀机制）
-    context_history: List[str] = []                   # 完整上下文历史
-    context_summary: str = ""                         # 压缩后的摘要（用于Token压缩）
-    current_context_tokens: int = 0                   # 当前上下文Token数
-    max_context_tokens: int = 8000                    # 动态膨胀上限（初始8000）
-    tool_call_count: Annotated[int, operator.add] = 0  # 累计工具调用次数
-    iteration_count: Annotated[int, operator.add] = 0  # 累计迭代轮次
+    # # 动态上下文压缩（你的核心安全阀机制）
+    # context_history: List[str] = []                   # 完整上下文历史
+    # context_summary: str = ""                         # 压缩后的摘要（用于Token压缩）
+    # current_context_tokens: int = 0                   # 当前上下文Token数
+    # max_context_tokens: int = 8000                    # 动态膨胀上限（初始8000）
+    # tool_call_count: Annotated[int, operator.add] = 0  # 累计工具调用次数
+    # iteration_count: Annotated[int, operator.add] = 0  # 累计迭代轮次
     
-    # 回答与反思
-    final_answer: str = ""                            # 当前子智能体生成的最终回答
-    agent_answers: List[dict] = []                    # 暂存回答，最终同步到主State
+    # # 回答与反思
+    # final_answer: str = ""                            # 当前子智能体生成的最终回答
+    # agent_answers: List[dict] = []                    # 暂存回答，最终同步到主State
     need_reflect: bool = False                        # 是否需要查询重写
-    reflection: str = ""                               # 反思结果（用于压缩总结）
+    # reflection: str = ""                               # 反思结果（用于压缩总结）
 
     # 主图同步字段（子图完成后写回主图）
     completed_task_ids: Annotated[Set[int], set_union] = set()
 
 
+class TaskStatus(str, Enum):
+    """任务生命周期状态"""
+    PENDING = "pending"       # 等待依赖完成
+    READY = "ready"           # 依赖已满足，可被调度
+    RUNNING = "running"       # 子图执行中
+    COMPLETED = "completed"   # 已完成
+    FAILED = "failed"         # 执行失败
