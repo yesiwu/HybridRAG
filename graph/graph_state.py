@@ -23,6 +23,7 @@ class State(MessagesState):
     dag_tasks: List[dict[str, Any]] = []
     completed_task_ids: Annotated[Set[int], set_union] = set()
     final_answer: str = ""
+    verification_report: dict = {}  # 验证报告（LCS、LLM验证、冲突检测结果）
 
 
 class AgentState(MessagesState):
@@ -37,7 +38,7 @@ class AgentState(MessagesState):
 
     # ==================== 迭代控制 ====================
     iteration_count: int = 0            # 当前迭代轮次
-    max_iterations: int = 3             # 最大迭代轮次
+    max_iterations: int = 4             # 最大迭代轮次
 
     # ==================== 检索历史（累积，用于避免重复） ====================
     search_query: str = ""              # 当前轮次的搜索词

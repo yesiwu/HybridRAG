@@ -74,18 +74,35 @@ def sub_planner(state, llm) -> dict:
     task_id = state.get("task_id", 0)
     rewritten_query = state.get("rewritten_query", "")
     iteration_count = state.get("iteration_count", 0)
+    max_iterations = state.get("max_iterations", 3)
     crawled_urls = state.get("crawled_urls", [])
     retrieval_history = state.get("retrieval_history", [])
     answer_history = state.get("answer_history", [])
     compressed_context = state.get("compressed_context", "")
     filtered_chunks = state.get("filtered_chunks", [])
+    prev_final_answer = state.get("final_answer", "")
+
+    # ========== 迭代次数限制检查 ==========
+    if iteration_count >= max_iterations:
+        print(f"\n[SubPlanner] 任务 {task_id}: 已达到最大迭代次数 {max_iterations}，跳过执行")
+        # 返回当前状态，不执行新的搜索
+        return {
+            "messages": state.get("messages", []),
+            "final_answer": prev_final_answer,  # 保留上一轮的回答
+            "search_query": state.get("search_query", ""),
+            "search_results": state.get("search_results", []),
+            "retrieved_chunks": state.get("retrieved_chunks", []),
+            "crawled_urls": crawled_urls,
+            "retrieval_history": retrieval_history,
+            "answer_history": answer_history,
+        }
 
     # ========== 判断调用场景 ==========
     search_query = rewritten_query if rewritten_query else task_query
     is_iteration = iteration_count > 0
 
     if is_iteration:
-        print(f"\n[SubPlanner] 任务 {task_id}: 迭代调用 (第{iteration_count}轮)")
+        print(f"\n[SubPlanner] 任务 {task_id}: 迭代调用 (第{iteration_count}轮/{max_iterations}轮)")
         print(f"[SubPlanner] 使用重写查询: '{search_query}'")
     else:
         print(f"\n[SubPlanner] 任务 {task_id}: 首次调用")

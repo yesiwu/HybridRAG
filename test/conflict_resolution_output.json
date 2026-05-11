@@ -1,0 +1,76 @@
+{
+  "original_query": "寒武纪2025年财务数据",
+  "final_answer": "根据提供的资料，对寒武纪2025年财务数据整合如下：\n\n**关键财务数据：**\n\n*   **2025年上半年营收：28.8亿元** [1]。\n    *   *注：此数据经过冲突仲裁后采纳。原冲突数据为“约20亿元” [2]，已依据可信度评分更正。此数据标记为【仲裁后采纳】。*\n*   **2025年全年营收预计：50亿元** [2]。\n    *   *注：此为预测数据，标记为【待验证】。*\n\n**结构化说明：**\n1.  **营收增长**：报告显示，寒武纪2025年上半年营收实现显著同比增长（增幅达43倍）[1]。\n2.  **数据关系**：已采纳的上半年营收（28.8亿元）[1] 与全年营收预测（50亿元）[2] 在数量上基本吻合，符合上半年业绩通常占全年过半的常规情况。",
+  "verification_report": {
+    "total_tasks": 2,
+    "lcs_results": [
+      {
+        "has_hallucination_risk": false,
+        "total_sentences": 1,
+        "verified_count": 1,
+        "unverified_count": 0,
+        "unverified_details": [],
+        "risk_level": "low"
+      },
+      {
+        "has_hallucination_risk": false,
+        "total_sentences": 1,
+        "verified_count": 1,
+        "unverified_count": 0,
+        "unverified_details": [],
+        "risk_level": "low"
+      }
+    ],
+    "llm_verification": [
+      {
+        "is_faithful": true,
+        "confidence": 0.8,
+        "hallucination_points": []
+      },
+      {
+        "is_faithful": true,
+        "confidence": 0.8,
+        "hallucination_points": []
+      }
+    ],
+    "conflict_detection": {
+      "has_conflict": true,
+      "conflicts": [
+        {
+          "topic": "寒武纪2025年上半年营收",
+          "task_ids": [
+            1,
+            2
+          ],
+          "conflict_type": "data",
+          "description": "任务1和任务2对寒武纪2025年上半年营收的数值存在矛盾。",
+          "details": {
+            "task_1_claims": "28.8亿元，同比增长43倍",
+            "task_2_claims": "约20亿元"
+          },
+          "resolution": "建议查阅寒武纪官方财务报告或权威财经数据源，以验证准确数值。"
+        }
+      ],
+      "consensus_points": [
+        "都涉及寒武纪2025年的营收数据"
+      ],
+      "overall_conflict_level": "medium"
+    },
+    "conflict_resolution": {
+      "resolved": true,
+      "resolutions": [
+        {
+          "conflict_topic": "寒武纪2025年上半年营收",
+          "conflict_type": "data",
+          "chosen_task_id": 1,
+          "reason": "基于可信度评分 (0.85)",
+          "all_scores": {
+            "1": 0.8500000000000001,
+            "2": 0.8500000000000001
+          }
+        }
+      ]
+    },
+    "hallucination_risk_tasks": []
+  }
+}
