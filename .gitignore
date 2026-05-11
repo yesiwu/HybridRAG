@@ -1,3 +1,5 @@
 model/
 .env
 __pycache__/
+chroma_db/
+logs/

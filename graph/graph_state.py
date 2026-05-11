@@ -1,5 +1,4 @@
 from typing import List, Annotated, Set, Any
-from enum import Enum
 from langgraph.graph import MessagesState
 import operator
 
@@ -21,6 +20,9 @@ class State(MessagesState):
 
     
     # 核心：通过注解实现「多智能体回答累加」
+    """
+    结构是  {task_id: int, query: str, retrieval_docs: List[dict], sub_answer: str}
+    """
     agent_answers: Annotated[List[dict], accumulate_or_reset] = [] 
 
     # --- DAG 任务编排核心字段 ---

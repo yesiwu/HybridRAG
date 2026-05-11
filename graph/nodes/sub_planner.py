@@ -7,8 +7,8 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, Tool
 
 REACT_SYSTEM_PROMPT = """你是一个专业的实时信息检索助手。
 你的工作流程是：
-1. 如果用户问题需要最新信息，调用 `rag_search` 工具进行搜索。
-2. 仔细阅读 `rag_search` 返回的检索片段。
+1. 如果用户问题需要最新信息，调用 `search_tavily` 工具进行搜索。
+2. 仔细阅读 `search_tavily` 返回的检索结果。
 3. 基于这些事实，直接给出准确、简洁的回答。
 
 【行为准则】：
@@ -21,8 +21,8 @@ _tools_list = None
 def _get_tools():
     global _tools_list
     if _tools_list is None:
-        from tools.rag_search import rag_search
-        _tools_list = [rag_search]
+        from tools.search import search_tavily
+        _tools_list = [search_tavily]
     return _tools_list
 
 def _get_tool_map():
@@ -57,14 +57,14 @@ def _execute_tool_call(tool_call: dict) -> str:
         return json.dumps({"error": str(e)}, ensure_ascii=False)
 
 def sub_planner(state, llm) -> dict:
-    question = state.get("question", "")
+    task_query = state.get("task_query", "")
     question_index = state.get("question_index", "default_task")
     messages = list(state.get("messages", []))
 
     if not messages:
         messages = [
             SystemMessage(content=REACT_SYSTEM_PROMPT),
-            HumanMessage(content=f"任务ID: {question_index}\n请回答：{question}"),
+            HumanMessage(content=f"任务ID: {question_index}\n请回答：{task_query}"),
         ]
 
     tools = _get_tools()

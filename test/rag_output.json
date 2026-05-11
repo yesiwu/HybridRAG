@@ -1,0 +1,59 @@
+{
+  "task_id": "test_rag_001",
+  "query": "2025年发展最快的AI公司有哪些",
+  "num_indexed": 25,
+  "retrieved_chunks": [
+    {
+      "rank": 1,
+      "text": "# 2025年全球最具潜力50家创业公司：这三家亚洲AI公司凭什么上榜？ 近日，公布了“2025年全球最具潜力50家创业公司”（以下简称TI50）榜单，其中亚洲Top3被三家中国公司包揽——Butterfly Effect（Manus母公司）、千寻智能（Spirit AI）、爱诗科技（旗下PixVerse/拍我AI）。这份被誉为“全球初创企业风向标”的榜单，向来以“严苛”著称：不仅考察公司的技术壁垒，更看重商业化落地能力与增长潜力。这三家公司为何能在OpenAI、Anthropic等巨头的阴影下突围？它们的产品到底戳中了市场的哪些痛点？ Butterfly Effect：从“手脑并用”到“一码难求”的通用AI 说起Butterfly Effect这个名字可能很多人并不熟悉，如果说它的核心产品是Manus，可能很多人在今年被其刷过屏。 今年3月份，通用AI智能体Manus开启了邀请制内测，当时的宣传文案“比肩DeepSeek”、“AI Agent的GPT时刻”以及邀请码价格最高被炒至近十万，引发了行业的关注。而Manus的研发团队所属公司就是红色蝴蝶（Butterfly Effect）。",
+      "metadata": {
+        "chunk_index": 0,
+        "url": "https://m.thepaper.cn/newsdetail_forward_31917355",
+        "title": "2025年全球最具潜力50家创业公司：这三家亚洲AI公司凭什么上榜？",
+        "source": "https://m.thepaper.cn/newsdetail_forward_31917355"
+      },
+      "rerank_score": 7.9375
+    },
+    {
+      "rank": 2,
+      "text": "2025年度AI创业公司TOP50 2026-02-02 eNet&Ciweek 2026年1月13日，前钉钉副总裁王铭创立的攀峰智能正式对外宣布完成数千万元种子轮融资，2025年10月王铭创立攀峰智能，公司定位为“AI时代的Shopify”，致力于打造商业化视频Agent。 AI应用爆发的这一年，下海创业的远不止王铭一人，一批曾深度参与钉钉从工具到生态、再到AI战略转型的核心高管，正密集走出大厂，投身AI原生创业浪潮。例如，钉钉前副总裁、智能硬件生态总经理林峰于2025年离职后计划创业聚焦AI办公硬件领域，钉钉前CEO叶军也于2025年7月离职投身AI Agent赛道。 不仅是国内大厂高管纷纷离职创业，前OpenAI首席技术官Mira Murati创办的Thinking Machines Lab也已完成20亿美元种子轮融资，前谷歌DeepMind资深研究员Andrew Dai与苹果研究科学家Yinfei Yang联手创立AI公司Elorian，种子轮融资目标高达5000万美元。",
+      "metadata": {
+        "url": "http://www.ciweek.com/article/2026/0202/A2026020235022.shtml",
+        "title": "2025年度AI创业公司TOP50 - 互联网周刊",
+        "chunk_index": 0,
+        "source": "http://www.ciweek.com/article/2026/0202/A2026020235022.shtml"
+      },
+      "rerank_score": 7.8125
+    },
+    {
+      "rank": 3,
+      "text": "究员Andrew Dai与苹果研究科学家Yinfei Yang联手创立AI公司Elorian，种子轮融资目标高达5000万美元。 2025年创投圈焦点依然还是在AI、具身智能领域，年终最热门的AI创投事件是以数十亿美元的价格被Meta收购的AI agent公司Manus，Manus的爆火也可以看作是今年社媒流量改变AI创业生态的起点之一。 在AI领域，还有更年轻的创业者。成立于2024年的首形科技，95后创始人胡宇航仅抖音平台粉丝量就达到了142.6万（截至2026年1月25日），Pre-A轮融资高达上亿，与手游《逆水寒》合作的角色“方承意”仿生机器人亮相杭州CP32Pre漫展，得益于双目视觉系统，他能够与面前的观众进行“眼神”交流，并通过搭载的AI仿生运动算法，做出自然的表情与头部动作。 [...] 可以看到的是，越来越多不同AI垂直领域的创业公司涌现，让AI应用正在从“工具”走向“伙伴”，从“功能”向“情境”转变。AI在反映人类的需求与渴望的同时，也在重塑社会生产与消费的模式。",
+      "metadata": {
+        "chunk_index": 1,
+        "source": "http://www.ciweek.com/article/2026/0202/A2026020235022.shtml",
+        "title": "2025年度AI创业公司TOP50 - 互联网周刊",
+        "url": "http://www.ciweek.com/article/2026/0202/A2026020235022.shtml"
+      },
+      "rerank_score": 7.125
+    },
+    {
+      "rank": 4,
+      "text": "Arm 的职业机会和空缺职位 如需支持或一般咨询，请联系 Arm Arm 在全球各地的办公室 面向 Arm 投资者的财务信息、报告和资源 有关以供应商身份与 Arm 合作的信息 Arm Newsroom Masthead Hero_Multi circles ## Arm 荣登《Fast Company》2025 年度最具创新力 AI 公司榜单 Arm 近期荣登《Fast Company》2025 年度最具创新力公司榜单，并在人工智能（AI）类别中位列第七\\。《Fast Company》自 2008 年发布“最具创新力公司”榜单以来，该榜单一直作为全球企业革新行业和塑造社会的基准，其依据创新性、影响力、时效性和相关性四大标准进行资格筛选。入选榜单的公司不仅代表其创新成果具备显著的商业与行业影响力，更被视为所在领域的引领者，推动世界的转型。 Arm 能够荣登备受瞩目的榜单前十，彰显了其近 35 年的开创性工作，不仅推动了全球技术演进，而且在 AI 转型中起到了关键作用。这一荣誉也进一步突显了 Arm 立于科技和 AI 发展的核心地位。",
+      "metadata": {
+        "source_index": 0
+      },
+      "rerank_score": 6.5625
+    },
+    {
+      "rank": 5,
+      "text": "及邀请码价格最高被炒至近十万，引发了行业的关注。而Manus的研发团队所属公司就是红色蝴蝶（Butterfly Effect）。 2025年4月，公司完成7500万美元C轮融资，由Benchmark领投，估值飙升至5亿美元；7月，更是将总部从开曼迁至新加坡，国内团队进行裁员优化，聚焦全球化布局。 Manus的定位是“全球首款通用型AI智能体”，核心理念是“手脑并用”——不仅能理解自然语言，更能完成复杂多步骤任务。比如，用户只需说“帮我筛选最近一周的简历，选出有3年以上Java经验的候选人，然后预订明天上午10点的面试场地，并发送邮件通知对方”，Manus能自动完成简历筛选、场地预订、邮件发送等一系列操作。在GAIA基准测试的通用AI评估体系中，Manus取得了SOTA当时最优成绩。 [...] 在速途网看来，资本的持续加码，正是对其“技术+场景”路线的认可。 爱诗科技：从“增长最快”到“用户最爱”的AI视频玩家从字节 在全球AI视频生成赛道，爱诗科技是“后来者”，却用了不到一年时间突出重围。",
+      "metadata": {
+        "source": "https://m.thepaper.cn/newsdetail_forward_31917355",
+        "title": "2025年全球最具潜力50家创业公司：这三家亚洲AI公司凭什么上榜？",
+        "chunk_index": 1,
+        "url": "https://m.thepaper.cn/newsdetail_forward_31917355"
+      },
+      "rerank_score": 5.8125
+    }
+  ]
+}
