@@ -60,7 +60,7 @@ class AgentState(MessagesState):
 
     # ==================== 检索相关 ====================
     search_query: str = ""              # 实际搜索的查询词（可能被重写过）
-    """search_results
+    """
     {
   "query": "2025年发展最快的几家ai公司",
   "results": [
@@ -78,20 +78,6 @@ class AgentState(MessagesState):
 }
     """
     search_results: List[dict] = []     # Tavily 搜索返回的原始结果
-    """
-      "retrieved_chunks": [
-    {
-      "rank": 1,
-      "text": "# 2025年全球最具潜力50家创业公司：这三家亚洲AI公司凭什么上榜？ 近日，公布了“2025年全球最具潜力50家创业公司”（以下简称TI50）榜单，其中亚洲Top3被三家中国公司包揽——Butterfly Effect（Manus母公司）、千寻智能（Spirit AI）、爱诗科技（旗下PixVerse/拍我AI）。这份被誉为“全球初创企业风向标”的榜单，向来以“严苛”著称：不仅考察公司的技术壁垒，更看重商业化落地能力与增长潜力。这三家公司为何能在OpenAI、Anthropic等巨头的阴影下突围？它们的产品到底戳中了市场的哪些痛点？ Butterfly Effect：从“手脑并用”到“一码难求”的通用AI 说起Butterfly Effect这个名字可能很多人并不熟悉，如果说它的核心产品是Manus，可能很多人在今年被其刷过屏。 今年3月份，通用AI智能体Manus开启了邀请制内测，当时的宣传文案“比肩DeepSeek”、“AI Agent的GPT时刻”以及邀请码价格最高被炒至近十万，引发了行业的关注。而Manus的研发团队所属公司就是红色蝴蝶（Butterfly Effect）。",
-      "metadata": {
-        "chunk_index": 0,
-        "url": "https://m.thepaper.cn/newsdetail_forward_31917355",
-        "title": "2025年全球最具潜力50家创业公司：这三家亚洲AI公司凭什么上榜？",
-        "source": "https://m.thepaper.cn/newsdetail_forward_31917355"
-      },
-      "rerank_score": 7.9375
-    },
-    """
     retrieved_chunks: List[dict] = []   # RAG 精排后的召回块
     # 结构: {rank: int, text: str, metadata: {title, url, chunk_index}, rerank_score: float}
 
