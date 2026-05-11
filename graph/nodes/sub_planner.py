@@ -1,5 +1,9 @@
 """子图规划节点
 流程：LLM 调用 search_tavily -> 代码自动调用 rag_index_and_retrieve -> LLM 基于召回块回答
+
+支持多轮迭代：
+1. 首次调用：接收 task_query 进行搜索和回答
+2. 迭代调用：根据 rewritten_query 进行补充检索，合并历史召回块
 """
 import json
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
@@ -30,7 +34,6 @@ def _get_tool_map():
 
 
 def _execute_tool_call(tool_call: dict) -> str:
-    """执行工具调用并返回 JSON 字符串"""
     name = tool_call["name"]
     args = tool_call["args"]
     fn = _get_tool_map().get(name)
@@ -44,7 +47,6 @@ def _execute_tool_call(tool_call: dict) -> str:
 
 
 def _format_retrieved_chunks(chunks: list) -> str:
-    """将召回块格式化为可读文本"""
     if not chunks:
         return "未检索到相关文档。"
 
@@ -70,24 +72,29 @@ def _format_retrieved_chunks(chunks: list) -> str:
 def sub_planner(state, llm) -> dict:
     task_query = state.get("task_query", "")
     task_id = state.get("task_id", 0)
-    messages = list(state.get("messages", []))
+    rewritten_query = state.get("rewritten_query", "")
+    iteration_count = state.get("iteration_count", 0)
+    crawled_urls = state.get("crawled_urls", [])
+    retrieval_history = state.get("retrieval_history", [])
+    answer_history = state.get("answer_history", [])
+    compressed_context = state.get("compressed_context", "")
+    filtered_chunks = state.get("filtered_chunks", [])
 
-    # 如果已有消息（来自反思/重写迭代），直接让 LLM 回答
-    if messages:
-        final_resp = llm.invoke(messages)
-        messages.append(final_resp)
-        return {
-            "messages": messages,
-            "final_answer": final_resp.content,
-            "retrieved_chunks": state.get("retrieved_chunks", []),
-        }
+    # ========== 判断调用场景 ==========
+    search_query = rewritten_query if rewritten_query else task_query
+    is_iteration = iteration_count > 0
+
+    if is_iteration:
+        print(f"\n[SubPlanner] 任务 {task_id}: 迭代调用 (第{iteration_count}轮)")
+        print(f"[SubPlanner] 使用重写查询: '{search_query}'")
+    else:
+        print(f"\n[SubPlanner] 任务 {task_id}: 首次调用")
+        print(f"[SubPlanner] 使用原始查询: '{search_query}'")
 
     # ========== Step 1: LLM 调用 search_tavily ==========
-    print(f"[SubPlanner] 任务 {task_id}: 搜索 '{task_query}'")
-
     init_messages = [
         SystemMessage(content=REACT_SYSTEM_PROMPT),
-        HumanMessage(content=f"任务ID: {task_id}\n请回答：{task_query}"),
+        HumanMessage(content=f"任务ID: {task_id}\n请回答：{search_query}"),
     ]
 
     tools = _get_tools()
@@ -95,7 +102,8 @@ def sub_planner(state, llm) -> dict:
     resp = llm_with_tools.invoke(init_messages)
 
     search_results = []
-    search_query = task_query  # 默认使用原始查询
+    actual_search_query = search_query
+
     if resp.tool_calls:
         init_messages.append(resp)
         for tc in resp.tool_calls:
@@ -104,7 +112,7 @@ def sub_planner(state, llm) -> dict:
             tool_result = json.loads(tool_result_json)
 
             if tc["name"] == "search_tavily":
-                search_query = tc["args"].get("query", task_query)  # 记录实际搜索词
+                actual_search_query = tc["args"].get("query", search_query)
                 search_results = tool_result.get("results", [])
                 print(f"[SubPlanner] 搜索返回 {len(search_results)} 条结果")
 
@@ -113,45 +121,99 @@ def sub_planner(state, llm) -> dict:
                 tool_call_id=tc["id"]
             ))
     else:
-        # LLM 没有调用工具，直接返回
         init_messages.append(resp)
         return {
             "messages": init_messages,
             "final_answer": resp.content,
+            "search_query": search_query,
             "search_results": [],
             "retrieved_chunks": [],
         }
 
-    # ========== Step 2: 自动调用 RAG 索引与检索 ==========
+    # ========== Step 2: RAG 索引与检索 ==========
     print(f"[SubPlanner] 任务 {task_id}: RAG 索引与检索")
     from tools.rag import rag_index_and_retrieve
 
-    search_result = {"query": task_query, "results": search_results}
+    # 过滤掉已爬取的 URL
+    new_results = [r for r in search_results if r.get("url") not in crawled_urls]
+    if not new_results:
+        print(f"[SubPlanner] 所有 URL 已检索过，使用全部结果")
+        new_results = search_results
+
+    search_result = {"query": actual_search_query, "results": new_results}
     rag_result = rag_index_and_retrieve.invoke({
         "task_id": str(task_id),
-        "query": task_query,
+        "query": actual_search_query,
         "search_results": search_result,
         "top_k": 5,
     })
     retrieved_chunks = rag_result.get("retrieved_chunks", [])
     print(f"[SubPlanner] 精排返回 {len(retrieved_chunks)} 个召回块")
 
-    # ========== Step 3: LLM 基于召回块生成回答 ==========
-    chunks_text = _format_retrieved_chunks(retrieved_chunks)
+    # 更新已爬取 URL
+    new_urls = [r.get("url", "") for r in search_results if r.get("url")]
+    updated_crawled_urls = list(set(crawled_urls + new_urls))
 
-    # 将 RAG 结果作为补充信息加入消息流
+    # ========== Step 3: 合并历史召回块 ==========
+    # 将过滤后的高质量块与当前召回块合并
+    if filtered_chunks:
+        all_chunks = filtered_chunks + retrieved_chunks
+        seen_texts = set()
+        unique_chunks = []
+        for chunk in sorted(all_chunks, key=lambda x: x.get("rerank_score", 0), reverse=True):
+            text_prefix = chunk.get("text", "")[:100]
+            if text_prefix not in seen_texts:
+                seen_texts.add(text_prefix)
+                unique_chunks.append(chunk)
+        final_chunks = unique_chunks[:10]
+    else:
+        final_chunks = retrieved_chunks
+
+    # ========== Step 4: LLM 基于召回块生成回答 ==========
+    chunks_text = _format_retrieved_chunks(final_chunks)
+
+    # 构建上下文提示
+    context_parts = []
+    if compressed_context:
+        context_parts.append(f"## 历史检索关键信息\n{compressed_context}")
+    if answer_history:
+        context_parts.append("## 历史回答摘要")
+        for hist in answer_history[-2:]:  # 只取最近 2 轮
+            context_parts.append(f"- 第{hist['iteration']}轮: {hist.get('key_points', hist['answer'][:200])}")
+
+    context_hint = "\n".join(context_parts) if context_parts else ""
+    if is_iteration:
+        context_hint += f"\n\n这是第 {iteration_count} 轮迭代检索，请综合所有信息给出更完善的回答。"
+
     init_messages.append(HumanMessage(
-        content=f"以下是经过 RAG 检索精排后的文档片段：\n\n{chunks_text}\n\n请基于以上文档回答用户问题，引用来源编号如 [1]、[2]。"
+        content=f"以下是经过 RAG 检索精排后的文档片段：\n\n{chunks_text}\n\n{context_hint}\n\n请基于以上文档回答用户问题，引用来源编号如 [1]、[2]。"
     ))
 
     print(f"[SubPlanner] 任务 {task_id}: 生成回答")
     final_resp = llm.invoke(init_messages)
     init_messages.append(final_resp)
 
+    # ========== 保存历史记录 ==========
+    new_retrieval_history = retrieval_history + [{
+        "iteration": iteration_count,
+        "query": actual_search_query,
+        "chunks": retrieved_chunks,
+    }]
+
+    new_answer_history = answer_history + [{
+        "iteration": iteration_count,
+        "query": actual_search_query,
+        "answer": final_resp.content,
+        "key_points": final_resp.content[:300],  # 关键内容提取（后续压缩节点会优化）
+    }]
+
     return {
         "messages": init_messages,
         "final_answer": final_resp.content,
-        "search_query": search_query,
+        "search_query": actual_search_query,
         "search_results": search_results,
         "retrieved_chunks": retrieved_chunks,
+        "crawled_urls": updated_crawled_urls,
+        "retrieval_history": new_retrieval_history,
+        "answer_history": new_answer_history,
     }

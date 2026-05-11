@@ -9,7 +9,6 @@ from graph.nodes import (
     main_summarizer,
     sub_planner,
     sub_reflector,
-    sub_rewrite,
     sub_compressor,
     subgraph_result_sync
 )
@@ -25,7 +24,7 @@ def create_agent_graph(llm, tools_list):
     """
     最终版 RAG 智能体工作流
     主图：主规划 → DAG 调度 → 子图（并行） → 汇总验证
-    子图：规划 → 工具 → 反思 → 压缩 → 重写 → 迭代/完成
+    子图：规划 → 工具 → 反思 → 压缩  → 迭代/完成
     """
     # ==========================
     # 一、子图构建
@@ -35,7 +34,7 @@ def create_agent_graph(llm, tools_list):
     # 子图节点  partial = 给函数 “预先绑定” 参数，生成一个新函数
     agent_subgraph_builder.add_node("sub_planner", partial(sub_planner, llm=llm))
     agent_subgraph_builder.add_node("sub_reflector", partial(sub_reflector, llm=llm))
-    agent_subgraph_builder.add_node("sub_rewrite", partial(sub_rewrite, llm=llm))
+    # agent_subgraph_builder.add_node("sub_rewrite", partial(sub_rewrite, llm=llm))
     agent_subgraph_builder.add_node("sub_compressor", partial(sub_compressor, llm=llm))
     agent_subgraph_builder.add_node("subgraph_result_sync", subgraph_result_sync)
 
@@ -49,7 +48,7 @@ def create_agent_graph(llm, tools_list):
     )
 
     #压缩是为了防止上下文过长，除去原来的冗余信息，保留原来关键信息， 同时给新的查询腾出空间。
-    agent_subgraph_builder.add_edge("sub_rewrite", "sub_compressor")
+    #agent_subgraph_builder.add_edge("sub_rewrite", "sub_compressor")
     #重写之后直接进入压缩节点，压缩节点完成后直接进入规划节点，进行下一轮迭代
     agent_subgraph_builder.add_edge("sub_compressor", "sub_planner")
     

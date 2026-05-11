@@ -80,8 +80,16 @@ def main_router(state: State) -> Union[List[Send], Literal["main_summarizer"]]:
 # ============================================================
 
 def route_after_reflect(state: AgentState) -> Literal["sub_compressor", "subgraph_result_sync"]:
-    """子图反思后路由：信息不足 → 压缩重写；信息充足 → 同步结果到主图"""
+    """子图反思后路由：
+    - need_reflect=True → 压缩节点（过滤无关内容，提取关键信息）→ 重新检索
+    - need_reflect=False → 同步结果到主图
+    """
     if state.get("need_reflect", False):
+        rewritten_query = state.get("rewritten_query", "")
+        if rewritten_query:
+            print(f"[Edges] 反思未通过，重写查询: '{rewritten_query}'")
+        print(f"[Edges] 进入压缩节点")
         return "sub_compressor"
+    print(f"[Edges] 反思通过，同步结果")
     return "subgraph_result_sync"
 
