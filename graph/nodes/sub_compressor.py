@@ -78,7 +78,12 @@ def sub_compressor(state, llm) -> dict:
 请提取关键信息并压缩。"""),
     ]
 
+    print(f"[Compressor] 调用 LLM 进行压缩")
+    import sys
+    sys.stdout.flush()
     resp = llm.invoke(messages)
+    print(f"[Compressor] LLM 调用完成")
+    sys.stdout.flush()
 
     # ========== 解析压缩结果 ==========
     try:

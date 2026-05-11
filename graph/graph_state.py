@@ -66,6 +66,10 @@ class AgentState(MessagesState):
     reflection: str = ""                # 反思结果
     rewritten_query: str = ""           # 重写后的查询
 
+    # ==================== 主图同步字段（子图完成后传播回主图） ====================
+    agent_answers: Annotated[List[dict], accumulate_or_reset] = []
+    completed_task_ids: Annotated[Set[int], set_union] = set()
+
 
 class TaskStatus(str, Enum):
     """任务生命周期状态"""

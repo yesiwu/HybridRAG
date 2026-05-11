@@ -17,38 +17,48 @@ RERANKER_MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "model", "Qw
 CHROMA_PERSIST_DIR = os.path.join(os.path.dirname(__file__), "..", "chroma_db")
 
 # ==================== 全局单例 ====================
+import threading
+
 _embedding_model = None
 _reranker_model = None
 _chroma_client = None
 _bm25_indexes: Dict[str, BM25Okapi] = {}
 _bm25_corpus: Dict[str, List[str]] = {}
+_model_lock = threading.Lock()
+_predict_lock = threading.Lock()  # Reranker predict 不支持多线程并发，需要串行化
 
 
 def _get_embedding_model():
-    """懒加载 Embedding 模型"""
+    """懒加载 Embedding 模型（线程安全）"""
     global _embedding_model
     if _embedding_model is None:
-        print(f"[RAG] 加载 Embedding 模型: {EMBEDDING_MODEL_PATH}")
-        _embedding_model = SentenceTransformer(EMBEDDING_MODEL_PATH)
+        with _model_lock:
+            if _embedding_model is None:
+                print(f"[RAG] 加载 Embedding 模型: {EMBEDDING_MODEL_PATH}")
+                _embedding_model = SentenceTransformer(EMBEDDING_MODEL_PATH)
     return _embedding_model
 
 
 def _get_reranker_model():
-    """懒加载 Reranker 模型"""
+    """懒加载 Reranker 模型（线程安全）"""
     global _reranker_model
     if _reranker_model is None:
-        print(f"[RAG] 加载 Reranker 模型: {RERANKER_MODEL_PATH}")
-        from sentence_transformers import CrossEncoder
-        _reranker_model = CrossEncoder(RERANKER_MODEL_PATH, max_length=512)
+        with _model_lock:
+            if _reranker_model is None:
+                print(f"[RAG] 加载 Reranker 模型: {RERANKER_MODEL_PATH}")
+                from sentence_transformers import CrossEncoder
+                _reranker_model = CrossEncoder(RERANKER_MODEL_PATH, max_length=512)
     return _reranker_model
 
 
 def _get_chroma_client():
-    """懒加载 ChromaDB 客户端"""
+    """懒加载 ChromaDB 客户端（线程安全）"""
     global _chroma_client
     if _chroma_client is None:
-        os.makedirs(CHROMA_PERSIST_DIR, exist_ok=True)
-        _chroma_client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
+        with _model_lock:
+            if _chroma_client is None:
+                os.makedirs(CHROMA_PERSIST_DIR, exist_ok=True)
+                _chroma_client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
     return _chroma_client
 
 
@@ -133,8 +143,9 @@ def _index_documents(task_id: str, documents: List[Dict[str, Any]]) -> int:
         return 0
 
     # 批量编码向量
-    print(f"[RAG] 编码 {len(all_chunks)} 个文档块...")
+    print(f"[RAG] 编码 {len(all_chunks)} 个文档块...", flush=True)
     embeddings = embedding_model.encode(all_chunks, show_progress_bar=False).tolist()
+    print(f"[RAG] 编码完成", flush=True)
 
     # 存入 ChromaDB（批量）
     batch_size = 100
@@ -251,9 +262,13 @@ def _rerank_results(query: str, documents: List[Dict], top_k: int = 5) -> List[D
 
     # 构造 query-document 对
     pairs = [(query, doc["text"]) for doc in documents]
+    print(f"[RAG] Rerank: {len(pairs)} 个文档对", flush=True)
 
-    # 计算相关性分数
-    scores = reranker.predict(pairs)
+    # 计算相关性分数（加锁，CrossEncoder.predict 不支持多线程并发）
+    print(f"[RAG] Rerank: 开始 predict...", flush=True)
+    with _predict_lock:
+        scores = reranker.predict(pairs)
+    print(f"[RAG] Rerank: predict 完成", flush=True)
 
     # 将分数添加到文档中
     for i, score in enumerate(scores):
@@ -284,7 +299,7 @@ def rag_index_and_retrieve(task_id: str, query: str, search_results: Dict[str, A
     返回:
         {"task_id": ..., "query": ..., "retrieved_chunks": [...]}
     """
-    print(f"--- [RAG] 任务 {task_id}: 开始索引与检索 ---")
+    print(f"--- [RAG] 任务 {task_id}: 开始索引与检索 ---", flush=True)
 
     results = search_results.get("results", [])
     if not results:
@@ -292,19 +307,19 @@ def rag_index_and_retrieve(task_id: str, query: str, search_results: Dict[str, A
 
     # Step 1: 索引文档
     num_indexed = _index_documents(task_id, results)
-    print(f"[RAG] 已索引 {num_indexed} 个文档块")
+    print(f"[RAG] 已索引 {num_indexed} 个文档块", flush=True)
 
     # Step 2: 向量召回
     vector_results = _vector_search(task_id, query, top_k=10)
-    print(f"[RAG] 向量召回 {len(vector_results)} 个结果")
+    print(f"[RAG] 向量召回 {len(vector_results)} 个结果", flush=True)
 
     # Step 3: BM25 召回
     bm25_results = _bm25_search(task_id, query, top_k=10)
-    print(f"[RAG] BM25 召回 {len(bm25_results)} 个结果")
+    print(f"[RAG] BM25 召回 {len(bm25_results)} 个结果", flush=True)
 
     # Step 4: RRF 融合排序
     fused_results = _rrf_fusion(vector_results, bm25_results)
-    print(f"[RAG] RRF 融合后 {len(fused_results)} 个结果")
+    print(f"[RAG] RRF 融合后 {len(fused_results)} 个结果", flush=True)
 
     # Step 5: Reranker 精排
     reranked_results = _rerank_results(query, fused_results, top_k=top_k)

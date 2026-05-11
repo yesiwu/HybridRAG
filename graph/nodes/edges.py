@@ -55,17 +55,15 @@ def main_router(state: State) -> Union[List[Send], Literal["main_summarizer"]]:
     # 有可执行任务 → Send 扇出并发
     if executable_tasks:
         return [
-            Send("atomic_agent_subgraph", 
+            Send("atomic_agent_subgraph",
                  {
                     "task_id": task["task_id"],
-                    "query": task["query"],
+                    "task_query": task["query"],
                     "depends_on": task.get("depends_on", []),
-                    # 关键改进：将之前所有任务的产出作为上下文传递给子图 agent_answers结构是  {task_id: int, query: str, retrieval_docs: List[dict], sub_answer: str}
                     "dependency_context": [
-                    ans for ans in agent_answers 
+                    ans for ans in agent_answers
                     if ans["task_id"] in task.get("depends_on", [])
                 ],
-
                  }
                  )
             for task in executable_tasks

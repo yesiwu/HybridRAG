@@ -206,8 +206,12 @@ def sub_planner(state, llm) -> dict:
         content=f"以下是经过 RAG 检索精排后的文档片段：\n\n{chunks_text}\n\n{context_hint}\n\n请基于以上文档回答用户问题，引用来源编号如 [1]、[2]。"
     ))
 
-    print(f"[SubPlanner] 任务 {task_id}: 生成回答")
+    print(f"[SubPlanner] 任务 {task_id}: 生成回答 (调用 LLM)")
+    import sys
+    sys.stdout.flush()
     final_resp = llm.invoke(init_messages)
+    print(f"[SubPlanner] 任务 {task_id}: LLM 调用完成")
+    sys.stdout.flush()
     init_messages.append(final_resp)
 
     # ========== 保存历史记录 ==========

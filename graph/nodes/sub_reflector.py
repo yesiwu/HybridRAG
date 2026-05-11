@@ -62,7 +62,12 @@ def sub_reflector(state, llm) -> dict:
         HumanMessage(content=f"## 任务查询\n{task_query}\n\n## 检索回答\n{final_answer}\n\n请评估回答质量。"),
     ]
 
+    print(f"[Reflector] 调用 LLM 进行评估")
+    import sys
+    sys.stdout.flush()
     resp = llm.invoke(messages)
+    print(f"[Reflector] LLM 调用完成")
+    sys.stdout.flush()
 
     # 解析 JSON 响应
     try:
