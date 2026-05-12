@@ -1,14 +1,240 @@
-======================================================================
+
+# HybridRAG-2
+
+基于 LangGraph 的混合检索增强生成（Hybrid RAG）系统，采用 DAG 任务分解 + 子图迭代反思 + 幻觉检测与冲突消解的多智能体架构。
+
+## 架构概览
+
+```
+用户查询
+  │
+  ▼
+┌─────────────────┐
+│  Main Planner   │  LLM 任务拆解 → DAG
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Main Router    │  依赖调度，按批次并行派发
+└────────┬────────┘
+         │  Send (并行)
+         ▼
+┌─────────────────────────────────────────┐
+│            Subgraph (每个子任务)          │
+│                                         │
+│  Sub Planner ──→ Sub Reflector          │
+│       ▲               │                 │
+│       │          need_reflect?           │
+│       │         ┌──────┴──────┐         │
+│       └─────────┤  Compressor │         │
+│       (迭代)    └──────┬──────┘         │
+│                        │ 否             │
+│                        ▼               │
+│              Result Sync ──→ 主图       │
+└─────────────────────────────────────────┘
+         │
+         ▼ (所有任务完成)
+┌─────────────────┐
+│ Main Summarizer │  幻觉检测 → 冲突消解 → 最终回答
+└─────────────────┘
+```
+
+## 核心特性
+
+- **DAG 任务分解**：LLM 将复杂查询拆解为带依赖关系的子任务图，支持并行/串行调度
+- **混合检索**：向量检索（ChromaDB + Qwen3-Embedding）+ BM25 关键词检索，RRF 融合后 Qwen3-Reranker 重排序
+- **迭代反思**：子图内 Reflector 评估回答质量，自动触发重检索与上下文压缩
+- **幻觉检测**：LCS（最长公共子序列）比对 + LLM 二次验证，标记待验证内容
+- **冲突消解**：多源冲突检测 + 可信度加权投票仲裁
+- **耗时统计**：每个节点的执行耗时自动记录并输出
+
+## 项目结构
+
+```
+HybridRAG-2/
+├── app.py                          # 入口：运行完整流程
+├── requirements.txt
+├── .env                            # 环境变量配置
+├── config/
+│   └── settings.py                 # 配置加载（单例）
+├── utils/
+│   └── llm_client.py              # LLM 客户端封装
+├── tools/
+│   ├── search.py                  # Tavily 网络搜索
+│   └── rag.py                     # 混合 RAG：分块、索引、检索、融合、重排
+├── graph/
+│   ├── graph_state.py             # 状态定义（主图 State / 子图 AgentState）
+│   ├── graph.py                   # 图构建与编译
+│   └── nodes/
+│       ├── main_planner.py        # 任务拆解
+│       ├── main_summarizer.py     # 汇总验证 + 冲突消解
+│       ├── sub_planner.py         # 子任务执行（ReAct 模式）
+│       ├── sub_reflector.py       # 回答质量反思
+│       ├── sub_compressor.py      # 上下文压缩
+│       ├── subgraph_result_sync.py # 子图结果同步
+│       ├── edges.py               # 路由逻辑
+│       └── prompts.py             # Prompt 模板
+├── model/                          # 本地模型（不纳入版本控制）
+│   ├── Qwen3-Embedding-0.6B/
+│   └── Qwen3-Reranker-0.6B/
+└── test/                           # 测试用例
+```
+
+## 快速开始
+
+### 1. 环境准备
+
+```bash
+conda create -n py313 python=3.13
+conda activate py313
+pip install -r requirements.txt
+```
+
+额外依赖（未列入 requirements.txt）：
+
+```bash
+pip install tavily-python
+```
+
+### 2. 下载本地模型
+
+将以下模型放置到 `model/` 目录：
+
+- **Embedding 模型**：[Qwen3-Embedding-0.6B](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B) → `model/Qwen3-Embedding-0.6B/`
+- **Reranker 模型**：[Qwen3-Reranker-0.6B](https://huggingface.co/Qwen/Qwen3-Reranker-0.6B) → `model/Qwen3-Reranker-0.6B/`
+
+### 3. 配置环境变量
+
+复制 `.env.example` 或直接创建 `.env`：
+
+```env
+# LLM 配置（OpenAI 兼容接口）
+LLM_API_KEY=your_api_key
+LLM_BASE_URL=https://your-api-endpoint/v1
+LLM_MODEL=mimo-v2.5-pro
+LLM_TEMPERATURE=0.1
+LLM_MAX_TOKENS=4096
+
+# 搜索配置
+SEARCH_API_KEY=your_tavily_api_key
+SEARCH_ENGINE=tavily
+MAX_SEARCH_RESULTS=5
+
+# 向量数据库配置
+CHROMA_PERSIST_DIR=./chroma_db
+CHUNK_SIZE=512
+CHUNK_OVERLAP=64
+TOP_K_RETRIEVE=10
+TOP_K_RERANK=5
+
+# 子图迭代配置
+MAX_REFLECTION_ROUNDS=3
+CONTEXT_COMPRESS_THRESHOLD=4000
+```
+
+### 4. 运行
+
+```bash
+python app.py
+```
+
+默认测试查询为 `"2025年发展最快的AI公司"`，可在 `app.py` 中修改。运行完成后：
+
+- 控制台打印每一步的耗时统计表格
+- 结果（含耗时数据）保存到 `test/pipeline_output.json`
+
+## 技术栈
+
+| 层级 | 技术 |
+|------|------|
+| 编排框架 | LangGraph（StateGraph、条件边、Send 并行派发） |
+| LLM 框架 | LangChain（ChatOpenAI、@tool） |
+| 网络搜索 | Tavily SDK |
+| 向量数据库 | ChromaDB（HNSW、余弦距离） |
+| 密集检索 | SentenceTransformer + Qwen3-Embedding-0.6B |
+| 稀疏检索 | BM25Okapi + jieba 中文分词 |
+| 融合策略 | Reciprocal Rank Fusion (RRF, k=60) |
+| 重排序 | CrossEncoder + Qwen3-Reranker-0.6B |
+| 幻觉检测 | LCS 比对 + LLM 验证 |
+| 冲突消解 | 多源可信度加权投票 |
+| 配置管理 | python-dotenv |
+| 测试 | pytest |
+
+## 工作流详解
+
+### 主图流程
+
+1. **Main Planner**：调用 LLM 将用户查询分解为 DAG 任务列表，每个任务包含 `task_id`、`query`、`depends_on`
+2. **Main Router**：校验 DAG 结构，找出依赖已满足且未完成的任务，通过 LangGraph `Send` 并行派发到子图
+3. **Main Summarizer**：所有子任务完成后，执行 4 步验证管线：
+   - LCS 幻觉检测（句子级比对，阈值 0.3）
+   - LLM 二次验证（仅中/高风险回答）
+   - 多源冲突检测（数据冲突、事实冲突、结论冲突）
+   - 可信度加权冲突消解
+   - 生成带可信度标记的最终回答
+
+### 子图流程（每个子任务）
+
+1. **Sub Planner**（ReAct 模式）：
+   - LLM 决策是否调用搜索工具
+   - 执行 Tavily 网络搜索
+   - 自动触发 RAG 流程：分块 → 向量化 → ChromaDB 存储 → 向量检索 + BM25 检索 → RRF 融合 → Reranker 重排
+   - 基于重排结果 + 压缩上下文 + 历史回答生成答案
+
+2. **Sub Reflector**：评估回答的完整性、准确性、时效性、深度，决定是否需要迭代
+
+3. **Sub Compressor**（迭代时触发）：LLM 过滤无关文档、提取关键事实、生成压缩上下文（200-500 字）
+
+4. **Result Sync**：将子图结果同步回主图的 `agent_answers` 字段
+
+### 状态管理
+
+主图使用 LangGraph 的 `Annotated` 类型自定义 reducer：
+- `accumulate_or_reset`：追加子图结果，支持重置标记
+- `set_union`：并行安全的集合合并（用于 `completed_task_ids`）
+
+## 测试
+
+```bash
+# 运行全部测试
+pytest test/
+
+# 运行单个测试
+pytest test/test_rag.py
+pytest test/test_main_planner.py
+pytest test/test_reflect_flow.py
+```
+
+| 测试文件 | 测试内容 |
+|----------|----------|
+| `test_search.py` | Tavily 搜索输出结构 |
+| `test_rag.py` | 完整 RAG 流程：索引 → 混合检索 → 重排 |
+| `test_main_planner.py` | 任务拆解为 DAG |
+| `test_main_router.py` | DAG 调度：首轮派发、依赖派发、并行派发、终止 |
+| `test_dispatch.py` | DAG 就绪判断与校验 |
+| `test_sub_planner.py` | 子规划器 ReAct 模式 |
+| `test_reflect_flow.py` | 完整反思迭代循环 |
+| `test_reflect_trigger.py` | 低质量回答触发反思 |
+| `test_summarizer.py` | LCS 计算、幻觉检测、冲突消解 |
+| `test_state_merge.py` | 自定义 reducer 行为 |
+| `test_graph_merge.py` | 子图结果合并到主图 |
+| `test_propagation.py` | 跨图层级的状态传播 |
+
+## License
+
+MIT
+
+=======================
 HybridRAG 完整流程
-======================================================================
+===========================
 用户查询: 2025年发展最快的AI公司
 
 [初始化] 创建智能体工作流图...
 [Graph] 智能体工作流编译成功
 
-======================================================================
+===========================
 开始执行工作流
-======================================================================
+===========================
 
 [Main Planner] 任务拆解完成: 1 个子任务, 推理: 用户查询是单一事实，询问2025年发展最快的AI公司，无需拆分为多个依赖任务，因此设计一个原子任务来直接检索和评估相关信息。
 
@@ -99,9 +325,9 @@ Default prompt name is set to 'query'. This prompt will be applied to all infere
 [Summarizer] Step 4: 生成最终回答
 [Summarizer] 汇总完成，最终回答长度: 1712
 
-======================================================================
+=========================
 执行完成 - 最终结果
-======================================================================
+==========================
 
 DAG 任务数: 1
   - 任务 1: 收集2025年AI公司的增长数据，基于如收入增长、用户增长或市场份额等指标，确定发展最快的公司。
